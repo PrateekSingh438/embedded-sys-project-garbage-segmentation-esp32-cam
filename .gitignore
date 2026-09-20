@@ -1,0 +1,15 @@
+# Python environments
+.venv/
+__pycache__/
+*.py[cod]
+
+# YOLO model weights
+*.pt
+*.pth
+*.onnx
+*.bin
+*.safetensors
+
+# Runtime image output
+detections/
+segmentation_results/
