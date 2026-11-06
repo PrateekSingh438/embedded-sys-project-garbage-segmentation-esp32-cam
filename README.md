@@ -1,5 +1,8 @@
-![Uploading Autonomous Rover Detecting Urban Litter.png…]()
 # AI-Based Smart Garbage Detection and Monitoring Robot
+
+![Concept illustration of a camera-equipped rover identifying litter in an urban setting](assets/project-images/urban-litter-rover.png)
+
+*Concept illustration for the project; it is not a photograph of the current prototype.*
 
 This prototype connects ESP32-CAM video, laptop-side YOLO segmentation, manual driving, Arduino motor control, and GPS telemetry. Garbage-specific classification, automatic collection, and detection logging are not implemented.
 
