@@ -1,85 +1,33 @@
-# ESP32-CAM garbage segmentation
+# AI-Based Smart Garbage Detection and Monitoring Robot
 
-This project detects potential litter from an ESP32-CAM video stream. The
-ESP32-CAM creates its own Wi-Fi network and serves an MJPEG stream. The Python
-application reads that stream, uses a YOLO segmentation model to identify
-**bottles** and **cups**, displays coloured instance masks, and saves an alert
-image for each detected class at most once every 10 seconds.
+This prototype connects ESP32-CAM video, laptop-side YOLO segmentation, manual driving, Arduino motor control, and GPS telemetry. Garbage-specific classification, automatic collection, and detection logging are not implemented.
 
-![Cup segmentation example](examples/segmentation/cup-segmentation.jpg)
+## Status
 
-## Repository contents
+| Feature | Status |
+|---|---|
+| ESP camera AP, MJPEG stream and web endpoints | Implemented in source; hardware unverified |
+| Python OpenCV stream, YOLO segmentation overlay | Implemented; model suitability for garbage is unknown |
+| WASD driving, Uno motor commands and timeout stop | Implemented in source; hardware unverified |
+| GPS parsing and text display | Implemented in source; hardware unverified |
+| Detection events, GPS association, saved images | Not implemented |
+| LoRa, cloud dashboard, autonomous collection | Planned only |
 
-- `esp32_cam_streamer/esp32_cam_streamer.ino` - firmware for an AI-Thinker
-  ESP32-CAM. It starts the `GarbageRobot` access point and an MJPEG endpoint.
-- `main.py` - desktop-side detector and viewer.
-- `examples/segmentation/` - sample output images.
+## System architecture
 
-Model weights, local Python environments, and runtime output are intentionally
-not committed.
-
-## Hardware and software needed
-
-- An AI-Thinker ESP32-CAM, an FTDI/USB-to-serial programmer, and a stable 5 V
-  power source.
-- Arduino IDE with the Espressif ESP32 board package installed.
-- A computer with Python 3.9+ and Wi-Fi.
-
-## 1. Flash the ESP32-CAM
-
-1. Open `esp32_cam_streamer/esp32_cam_streamer.ino` in Arduino IDE.
-2. In **Tools > Board**, select **AI Thinker ESP32-CAM**. Use the appropriate
-   serial port and a 115200 baud upload speed.
-3. Connect `GPIO 0` to `GND`, upload the sketch, then disconnect `GPIO 0` from
-   `GND` and reset the board to run it.
-4. Open Serial Monitor at 115200 baud. The camera should report its stream URL:
-   `http://192.168.4.1:81/stream`.
-5. Before flashing, set `password` in the sketch to a private value of at
-   least eight characters. Then connect the computer that will run Python to
-   the Wi-Fi network:
-
-   ```text
-   Network: GarbageRobot
-   Password: the password you configured in the sketch
-   ```
-
-You can first open the stream URL in a browser to confirm that the camera is
-working.
-
-## 2. Run segmentation
-
-From the repository root, create and activate a virtual environment (optional
-but recommended), install dependencies, then start the application:
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-pip install ultralytics opencv-python
-python main.py
+```mermaid
+flowchart LR
+ CAM[ESP32-CAM] -->|MJPEG Wi-Fi port 81| PC[Laptop OpenCV and YOLO]
+ PC -->|HTTP commands and GPS poll port 80| CAM
+ CAM <-->|UART2 9600 baud| UNO[Arduino Uno]
+ GPS[NEO-6M] -->|NMEA SoftwareSerial 9600| UNO
+ UNO -->|PWM and direction pins| L[L298N] --> M[DC motors]
 ```
 
-On first use, Ultralytics downloads `yolo11n-seg.pt` automatically if it is not
-already present. The weight file is ignored by Git and is never pushed.
+## Run
 
-The live window shows coloured segmentation masks and labels. Press `q` to quit.
-Alert frames are saved locally in `segmentation_results/` and are also ignored
-by Git.
+Install Python dependencies from the repository root with `python -m pip install -r ai-detection/requirements.txt`, then run `python ai-detection/camera.py`. Connect to the ESP access point first. Controls: W/A/S/D, Space or X to stop, Esc to exit. Keep the video window focused. Setup and wiring details are in docs/.
 
-## Configuration
+## Hardware and limits
 
-- Change `ssid` and `password` in the Arduino sketch to use a different camera
-  access-point name or password.
-- Change `camera_url` in `main.py` if the stream address or port changes.
-- `classes=[39, 41]` limits detection to COCO bottle and cup classes.
-- `conf=0.45` controls the minimum confidence threshold.
-
-## Troubleshooting
-
-- If the Python app cannot connect, verify the computer is connected to
-  `GarbageRobot` rather than another Wi-Fi network, then test the stream URL in
-  a browser.
-- If the camera repeatedly resets or fails to initialize, use a stable 5 V
-  supply capable of powering the ESP32-CAM.
-- If upload fails, check that GPIO 0 was grounded only during upload and that
-  it was disconnected before resetting the board.
+ESP32-CAM serves video and HTTP endpoints. Uno runs motor control and GPS parsing. The NEO-6M provides NMEA; L298N drives the two motors. Battery design is unspecified. Never power motors from Uno GPIO or its 5 V output; see hardware guide. Physical operation has not been verified. Supplied YOLO model training and class suitability are unknown. GPS text is displayed but is not attached to detections or stored. Contributors and license were not specified.

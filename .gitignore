@@ -1,15 +1,15 @@
-# Python environments
-.venv/
 __pycache__/
 *.py[cod]
+.venv/
+venv/
+.env
+hardware/esp32-cam/secrets.h
+.vscode/
+.idea/
+build/
 
-# YOLO model weights
-*.pt
-*.pth
-*.onnx
-*.bin
-*.safetensors
-
-# Runtime image output
-detections/
-segmentation_results/
+# Local push/auth staging files
+.gh-config/
+.gitconfig
+.git-askpass.cmd
+.push-stage/
