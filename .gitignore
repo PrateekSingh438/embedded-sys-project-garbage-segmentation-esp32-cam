@@ -3,7 +3,7 @@ __pycache__/
 .venv/
 venv/
 .env
-hardware/esp32-cam/secrets.h
+hardware/esp32_cam/secrets.h
 .vscode/
 .idea/
 build/
@@ -13,13 +13,3 @@ taco_yolo/
 ai-detection/taco_yolo/
 *.pt
 ai-detection/detections/
-runs/
-ai-detection/runs/
-taco_yolo/
-ai-detection/taco_yolo/
-*.pt
-ai-detection/detections/
-runs/
-ai-detection/taco_yolo/
-ai-detection/detections/snapshots/
-*.pt

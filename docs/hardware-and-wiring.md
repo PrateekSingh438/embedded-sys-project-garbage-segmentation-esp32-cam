@@ -10,10 +10,10 @@
 | D3 | SoftwareSerial TX, unused by current GPS code |
 | D0/RX, D1/TX | ESP serial link |
 
-ESP UART2 uses GPIO13 RX and GPIO14 TX at 9600 baud, 8N1. Connect ESP TX GPIO14 to Uno RX, and Uno TX to ESP RX GPIO13. Uno TX is typically 5 V and may need level shifting to protect ESP input. Share ground. Disconnect serial as needed while uploading Uno firmware.
+ESP UART2 uses GPIO13 RX and GPIO14 TX at 9600 baud, 8N1. Connect ESP TX GPIO14 to Uno RX (D0), and Uno TX (D1) to ESP RX GPIO13 through a resistor divider because the Uno output is 5 V and ESP GPIO is 3.3 V. Share ground. Disconnect D0/D1 while uploading Uno firmware.
 
 ## Component roles and power
 
-ESP32-CAM captures and serves video. Uno handles motor commands and GPS parsing. NEO-6M supplies NMEA data. L298N drives two DC motors. Battery and chassis enable mobility, but exact battery voltage/current, regulator, motor model, and wiring harness are not supplied. Select power components from the actual module datasheets. Use a motor supply appropriate to the motors and regulated ESP power that handles current peaks. Never power motors from Uno GPIO or its 5 V output. Check logic voltage compatibility. Test with wheels lifted at low speed.
+ESP32-CAM captures and serves video. Uno handles motor commands and GPS parsing. NEO-6M supplies NMEA data. L298N drives two 3–6 V DC motors. Battery and chassis enable mobility, but exact battery voltage/current, regulator, motor model, and wiring harness are not supplied. Select power components from the actual module datasheets. Give the ESP32-CAM a stable 5 V supply that handles current peaks. Never power motors from Uno GPIO or its 5 V output. Connect grounds together. Test with wheels lifted at low speed.
 
 LoRa/SX1262 is not present in source. Hardware has not been physically verified.
