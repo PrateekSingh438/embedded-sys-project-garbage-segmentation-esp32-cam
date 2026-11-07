@@ -814,7 +814,7 @@ def main():
         CLASS_FILTER = FALLBACK_COCO_FILTER
         print("WARNING: {} not found. Using the generic COCO model {}.".format(
             MODEL_NAME, FALLBACK_MODEL))
-        print("Train the TACO model with training/train_taco.py and copy "
+        print("Train the TACO model with python ai-detection/train_taco.py and copy "
               "garbage-seg.pt under ai-detection/models/.")
 
     print("Loading model", model_path, "...")

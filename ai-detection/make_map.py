@@ -2,7 +2,7 @@
 Build an interactive map (HTML) from ai-detection/detections/detections.csv.
 
     python -m pip install folium
-    python make_map.py
+    python ai-detection/make_map.py
 
 Opens ai-detection/detections/garbage_map.html in your browser (needs internet for map tiles).
 Each marker = one piece of garbage, coloured by type. Click a marker to see

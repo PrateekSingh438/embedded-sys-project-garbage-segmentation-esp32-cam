@@ -3,9 +3,9 @@ Step 1 of 2: download TACO and convert it to YOLO segmentation format.
 
 Run this on your laptop or in Google Colab (it needs normal internet):
 
-    python prepare_taco.py
-    python prepare_taco.py --classes super      # 28 TACO super-categories
-    python prepare_taco.py --classes full       # all 60 TACO categories
+    python ai-detection/prepare_taco.py
+    python ai-detection/prepare_taco.py --classes super  # 28 TACO super-categories
+    python ai-detection/prepare_taco.py --classes full   # all 60 TACO categories
 
 Output folder (default: ai-detection/taco_yolo):
     ai-detection/taco_yolo/images/train, ai-detection/taco_yolo/images/val

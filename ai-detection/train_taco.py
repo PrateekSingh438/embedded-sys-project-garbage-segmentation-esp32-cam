@@ -1,9 +1,9 @@
 """
 Step 2 of 2: fine-tune YOLO11 segmentation on the prepared TACO data.
 
-    python train_taco.py                       # sensible defaults
-    python train_taco.py --epochs 100 --imgsz 640 --batch 16
-    python train_taco.py --export onnx         # also make a faster ONNX copy
+    python ai-detection/train_taco.py
+    python ai-detection/train_taco.py --epochs 100 --imgsz 640 --batch 16
+    python ai-detection/train_taco.py --export onnx
 
 A GPU is strongly recommended. On a laptop CPU, training takes many hours.
 Use Google Colab (Runtime -> Change runtime type -> GPU) if you have no GPU.
