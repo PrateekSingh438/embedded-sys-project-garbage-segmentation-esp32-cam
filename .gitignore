@@ -13,3 +13,7 @@ taco_yolo/
 ai-detection/taco_yolo/
 *.pt
 ai-detection/detections/
+.gh-config/
+.gitconfig
+.git-askpass.cmd
+.push-stage/
