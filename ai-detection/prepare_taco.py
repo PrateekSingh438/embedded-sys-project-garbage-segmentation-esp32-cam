@@ -7,10 +7,10 @@ Run this on your laptop or in Google Colab (it needs normal internet):
     python prepare_taco.py --classes super      # 28 TACO super-categories
     python prepare_taco.py --classes full       # all 60 TACO categories
 
-Output folder (default: taco_yolo):
-    taco_yolo/images/train, taco_yolo/images/val
-    taco_yolo/labels/train, taco_yolo/labels/val
-    taco_yolo/data.yaml
+Output folder (default: ai-detection/taco_yolo):
+    ai-detection/taco_yolo/images/train, ai-detection/taco_yolo/images/val
+    ai-detection/taco_yolo/labels/train, ai-detection/taco_yolo/labels/val
+    ai-detection/taco_yolo/data.yaml
 
 Needs:  pip install pillow requests
 """
@@ -226,3 +226,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+

@@ -1,10 +1,10 @@
 """
-Build an interactive map (HTML) from detections/detections.csv.
+Build an interactive map (HTML) from ai-detection/detections/detections.csv.
 
     python -m pip install folium
     python make_map.py
 
-Opens detections/garbage_map.html in your browser (needs internet for map tiles).
+Opens ai-detection/detections/garbage_map.html in your browser (needs internet for map tiles).
 Each marker = one piece of garbage, coloured by type. Click a marker to see
 type, confidence, time, size, coordinates and whether the position came
 from a real GPS fix or from the ORIGIN fallback.

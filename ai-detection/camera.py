@@ -815,7 +815,7 @@ def main():
         print("WARNING: {} not found. Using the generic COCO model {}.".format(
             MODEL_NAME, FALLBACK_MODEL))
         print("Train the TACO model with training/train_taco.py and copy "
-              "garbage-seg.pt next to camera.py.")
+              "garbage-seg.pt under ai-detection/models/.")
 
     print("Loading model", model_path, "...")
     model = YOLO(model_path)

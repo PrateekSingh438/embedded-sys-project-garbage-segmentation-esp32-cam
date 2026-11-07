@@ -9,7 +9,7 @@ A GPU is strongly recommended. On a laptop CPU, training takes many hours.
 Use Google Colab (Runtime -> Change runtime type -> GPU) if you have no GPU.
 
 Output:
-    garbage-seg.pt   <- copy this next to camera.py
+    models/garbage-seg.pt
     runs/taco_seg/   <- plots, confusion matrix, metrics
 """
 import argparse
@@ -92,7 +92,7 @@ def main():
     names = best_model.names
     for i, idx in enumerate(metrics.seg.ap_class_index):
         print("  {:<22}{:.3f}".format(names[int(idx)], metrics.seg.maps[int(idx)]))
-    print("Plots saved in runs/{}/".format(args.name))
+    print("Plots saved in {}/".format(RUNS_DIR / args.name))
 
     # ---------- Copy to the name camera.py expects ----------
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
@@ -110,3 +110,4 @@ def main():
 
 if __name__ == "__main__":
     main()   # this guard is required on Windows
+
