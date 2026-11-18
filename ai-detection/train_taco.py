@@ -1,15 +1,15 @@
 """
 Step 2 of 2: fine-tune YOLO11 segmentation on the prepared TACO data.
 
-    python ai-detection/train_taco.py
-    python ai-detection/train_taco.py --epochs 100 --imgsz 640 --batch 16
-    python ai-detection/train_taco.py --export onnx
+    python train_taco.py                       # sensible defaults
+    python train_taco.py --epochs 100 --imgsz 640 --batch 16
+    python train_taco.py --export onnx         # also make a faster ONNX copy
 
 A GPU is strongly recommended. On a laptop CPU, training takes many hours.
 Use Google Colab (Runtime -> Change runtime type -> GPU) if you have no GPU.
 
 Output:
-    models/garbage-seg.pt
+    garbage-seg.pt   <- copy this next to camera.py
     runs/taco_seg/   <- plots, confusion matrix, metrics
 """
 import argparse
@@ -20,14 +20,12 @@ from pathlib import Path
 from ultralytics import YOLO
 
 BASE_DIR = Path(__file__).resolve().parent
-MODELS_DIR = BASE_DIR / "models"
-RUNS_DIR = BASE_DIR / "runs"
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", default=str(BASE_DIR / "taco_yolo" / "data.yaml"))
-    ap.add_argument("--model", default=str(MODELS_DIR / "yolo11n-seg.pt"),
+    ap.add_argument("--model", default="yolo11n-seg.pt",
                     help="start weights. yolo11s-seg.pt is more accurate but slower")
     ap.add_argument("--epochs", type=int, default=80)
     ap.add_argument("--imgsz", type=int, default=640)
@@ -63,7 +61,7 @@ def main():
         device=device,
         workers=args.workers,
         patience=20,             # stop early if validation stops improving
-        project=str(RUNS_DIR),
+        project=str(BASE_DIR / "runs"),
         name=args.name,
         exist_ok=True,
         # Augmentation suited to outdoor litter photos
@@ -74,7 +72,7 @@ def main():
         scale=0.5,
     )
 
-    best = os.path.join(str(RUNS_DIR), args.name, "weights", "best.pt")
+    best = str(BASE_DIR / "runs" / args.name / "weights" / "best.pt")
     if not os.path.exists(best):
         raise SystemExit("Training did not produce best.pt")
 
@@ -90,15 +88,19 @@ def main():
     print("Mask mAP50-95 : {:.3f}".format(metrics.seg.map))
     print("\nPer-class mask mAP50-95:")
     names = best_model.names
-    for i, idx in enumerate(metrics.seg.ap_class_index):
-        print("  {:<22}{:.3f}".format(names[int(idx)], metrics.seg.maps[int(idx)]))
-    print("Plots saved in {}/".format(RUNS_DIR / args.name))
+    try:
+        for idx in metrics.seg.ap_class_index:
+            print("  {:<22}{:.3f}".format(names[int(idx)], metrics.seg.maps[int(idx)]))
+    except Exception as error:
+        print("  (per-class table unavailable: {})".format(error))
+    print("Plots saved in {}".format(BASE_DIR / "runs" / args.name))
 
     # ---------- Copy to the name camera.py expects ----------
-    MODELS_DIR.mkdir(parents=True, exist_ok=True)
-    output_model = MODELS_DIR / "garbage-seg.pt"
-    shutil.copyfile(best, output_model)
-    print("\nSaved", output_model)
+    models_dir = BASE_DIR / "models"
+    models_dir.mkdir(exist_ok=True)
+    target = models_dir / "garbage-seg.pt"
+    shutil.copyfile(best, target)
+    print("\nSaved {}  (camera.py loads it automatically)".format(target))
 
     # ---------- Optional optimisation ----------
     if args.export:
@@ -110,4 +112,3 @@ def main():
 
 if __name__ == "__main__":
     main()   # this guard is required on Windows
-

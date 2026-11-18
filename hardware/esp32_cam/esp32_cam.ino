@@ -1,8 +1,18 @@
 #include "esp_camera.h"
 #include <WiFi.h>
 #include <WebServer.h>
+#include "soc/soc.h"
+#include "soc/rtc_cntl_reg.h"
 #include "secrets.h"
 
+#define DISABLE_BROWNOUT 1
+
+// ---------------- Stream tuning ----------------
+#define STREAM_DELAY_MS 50 // ~15-18 fps smooth streaming
+
+// Default to Preset 1 (320x240) for lag-free video and fast YOLO inference
+#define DEFAULT_PRESET 1
+int currentPreset = DEFAULT_PRESET;
 
 // AI Thinker ESP32-CAM camera pins
 #define PWDN_GPIO_NUM 32
@@ -23,7 +33,7 @@
 #define HREF_GPIO_NUM 23
 #define PCLK_GPIO_NUM 22
 
-// ESP32 UART2: RX=GPIO13, TX=GPIO14
+// ESP32 UART2: RX=GPIO13 (from Uno D1), TX=GPIO14 (to Uno D0)
 HardwareSerial RobotSerial(2);
 const int ROBOT_RX = 13;
 const int ROBOT_TX = 14;
@@ -35,8 +45,6 @@ String gpsData = "";
 String gpsLine = "";
 unsigned long lastGpsMillis = 0;
 
-// loop() and all web handlers run in the same task,
-// so no mutex is needed for gpsData.
 void readRobotSerial()
 {
   while (RobotSerial.available())
@@ -69,6 +77,15 @@ void readRobotSerial()
   }
 }
 
+String currentGps()
+{
+  if (lastGpsMillis == 0 || millis() - lastGpsMillis > 6000)
+  {
+    return "GPS: no data from Arduino";
+  }
+  return gpsData;
+}
+
 void handleRoot()
 {
   String page = R"rawliteral(
@@ -94,12 +111,13 @@ async function updateGPS(){
   document.getElementById('gps').innerText=await r.text();
  }catch(e){}
 }
-setInterval(updateGPS,1000);
+setInterval(updateGPS,2000);
 </script>
 </body>
 </html>
 )rawliteral";
 
+  server.sendHeader("Connection", "close");
   server.send(200, "text/html", page);
 }
 
@@ -107,6 +125,7 @@ void handleCommand()
 {
   if (!server.hasArg("c") || server.arg("c").length() == 0)
   {
+    server.sendHeader("Connection", "close");
     server.send(400, "text/plain", "Missing command");
     return;
   }
@@ -115,77 +134,130 @@ void handleCommand()
 
   if (c != 'F' && c != 'B' && c != 'L' &&
       c != 'R' && c != 'S' &&
-      !(c >= '0' && c <= '9'))
+      !(c >= '1' && c <= '9'))
   {
+    server.sendHeader("Connection", "close");
     server.send(400, "text/plain", "Invalid command");
     return;
   }
 
   RobotSerial.write(c);
-  server.send(200, "text/plain", "OK");
+
+  String reply = "OK\n";
+  reply += currentGps();
+  reply += "\nUP=";
+  reply += String(millis() / 1000);
+  reply += "\nRES=";
+  reply += String(currentPreset);
+  reply += "\n";
+
+  server.sendHeader("Connection", "close");
+  server.send(200, "text/plain", reply);
 }
 
 void handleGPS()
 {
-  String out;
+  server.sendHeader("Connection", "close");
+  server.send(200, "text/plain", currentGps());
+}
 
-  if (lastGpsMillis == 0 || millis() - lastGpsMillis > 3000)
-  {
-    out = "GPS: no data from Arduino";
-  }
-  else
-  {
-    out = gpsData;
-  }
+void applyPreset(int p)
+{
+  sensor_t *s = esp_camera_sensor_get();
+  if (!s)
+    return;
 
-  server.send(200, "text/plain", out);
+  if (!psramFound())
+    p = 1;
+  if (p < 1)
+    p = 1;
+  if (p > 4)
+    p = 4;
+
+  // Higher JPEG quality number = smaller file size = much faster Wi-Fi streaming
+  switch (p)
+  {
+  case 1:
+    s->set_framesize(s, FRAMESIZE_QVGA);
+    s->set_quality(s, 14);
+    break;
+  case 2:
+    s->set_framesize(s, FRAMESIZE_CIF);
+    s->set_quality(s, 16);
+    break;
+  case 3:
+    s->set_framesize(s, FRAMESIZE_HVGA);
+    s->set_quality(s, 18);
+    break;
+  default:
+    s->set_framesize(s, FRAMESIZE_VGA);
+    s->set_quality(s, 20);
+    break;
+  }
+  currentPreset = p;
+}
+
+void handleRes()
+{
+  if (server.hasArg("p"))
+  {
+    applyPreset(server.arg("p").toInt());
+  }
+  server.sendHeader("Connection", "close");
+  server.send(200, "text/plain", "RES=" + String(currentPreset));
 }
 
 void streamTask(void *parameter)
 {
-  const char *boundary = "\r\n--frame\r\n";
+  WiFiClient pending;
 
   while (true)
   {
-    WiFiClient client = streamServer.available();
+    WiFiClient client;
+
+    if (pending)
+    {
+      client = pending;
+      pending = WiFiClient();
+    }
+    else
+    {
+      client = streamServer.available();
+    }
 
     if (!client)
     {
-      vTaskDelay(pdMS_TO_TICKS(10));
+      vTaskDelay(pdMS_TO_TICKS(15));
       continue;
     }
 
     client.setNoDelay(true);
+    client.setTimeout(1);
 
-    // Read the HTTP request
     String request = "";
     unsigned long start = millis();
 
-    while (client.connected() && millis() - start < 1500)
+    while (client.connected() && millis() - start < 1200)
     {
       while (client.available())
       {
         char c = client.read();
         request += c;
-
-        if (request.endsWith("\r\n\r\n") || request.length() > 1500)
+        if (request.endsWith("\r\n\r\n") || request.length() > 1000)
         {
           break;
         }
       }
-
-      if (request.endsWith("\r\n\r\n") || request.length() > 1500)
+      if (request.endsWith("\r\n\r\n") || request.length() > 1000)
       {
         break;
       }
-
-      vTaskDelay(pdMS_TO_TICKS(1));
+      vTaskDelay(pdMS_TO_TICKS(2));
     }
 
     if (request.indexOf("GET /stream") < 0)
     {
-      client.print("HTTP/1.1 404 Not Found\r\n");
-      client.print("Connection: close\r\n\r\n");
+      client.print("HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n");
       client.stop();
       continue;
     }
@@ -199,45 +271,91 @@ void streamTask(void *parameter)
 
     while (client.connected())
     {
+      WiFiClient next = streamServer.available();
+      if (next)
+      {
+        pending = next;
+        break;
+      }
+
       camera_fb_t *fb = esp_camera_fb_get();
 
       if (!fb)
       {
-        vTaskDelay(pdMS_TO_TICKS(30));
+        vTaskDelay(pdMS_TO_TICKS(20));
         continue;
       }
 
-      size_t len = fb->len;
-
-      client.print(boundary);
-      client.print("Content-Type: image/jpeg\r\n");
-      client.print("Content-Length: ");
-      client.print(len);
-      client.print("\r\n\r\n");
-
-      size_t written = client.write(fb->buf, len);
-      esp_camera_fb_return(fb);
-
-      if (written != len)
+      // Discard tiny/corrupted frames before sending
+      if (fb->len < 400)
       {
-        break; // client disconnected or write failed
+        esp_camera_fb_return(fb);
+        vTaskDelay(pdMS_TO_TICKS(10));
+        continue;
       }
 
-      client.print("\r\n");
-      vTaskDelay(pdMS_TO_TICKS(20));
+      char hdr[128];
+      int hlen = snprintf(hdr, sizeof(hdr),
+                          "\r\n--frame\r\nContent-Type: image/jpeg\r\nContent-Length: %u\r\n\r\n",
+                          (unsigned int)fb->len);
+
+      if (client.write((const uint8_t *)hdr, hlen) != (size_t)hlen)
+      {
+        esp_camera_fb_return(fb);
+        break;
+      }
+
+      size_t written = client.write(fb->buf, fb->len);
+      esp_camera_fb_return(fb);
+
+      if (written != fb->len)
+      {
+        break;
+      }
+
+      vTaskDelay(pdMS_TO_TICKS(STREAM_DELAY_MS));
     }
 
     client.stop();
+    vTaskDelay(pdMS_TO_TICKS(15));
   }
+}
+
+void tuneSensor()
+{
+  sensor_t *s = esp_camera_sensor_get();
+  if (!s)
+    return;
+
+  s->set_brightness(s, 0);
+  s->set_contrast(s, 0);
+  s->set_saturation(s, 0);
+  s->set_whitebal(s, 1);
+  s->set_awb_gain(s, 1);
+  s->set_exposure_ctrl(s, 1);
+  s->set_aec2(s, 1);
+  s->set_ae_level(s, 0);
+  s->set_gain_ctrl(s, 1);
+  s->set_gainceiling(s, GAINCEILING_4X);
+  s->set_bpc(s, 1);
+  s->set_wpc(s, 1);
+  s->set_raw_gma(s, 1);
+  s->set_lenc(s, 1);
+  s->set_dcw(s, 1);
 }
 
 void setup()
 {
+#if DISABLE_BROWNOUT
+  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
+#endif
+
   Serial.begin(115200);
 
+  RobotSerial.setRxBufferSize(512);
   RobotSerial.begin(9600, SERIAL_8N1, ROBOT_RX, ROBOT_TX);
 
-  camera_config_t config = {}; // zero-initialize every field
+  camera_config_t config = {};
   config.ledc_channel = LEDC_CHANNEL_0;
   config.ledc_timer = LEDC_TIMER_0;
 
@@ -255,27 +373,26 @@ void setup()
   config.pin_vsync = VSYNC_GPIO_NUM;
   config.pin_href = HREF_GPIO_NUM;
 
-  // If this line fails to compile on your board package,
-  // rename pin_sscb_* to pin_sccb_* (or the reverse).
   config.pin_sscb_sda = SIOD_GPIO_NUM;
   config.pin_sscb_scl = SIOC_GPIO_NUM;
 
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
-  config.xclk_freq_hz = 20000000;
+  // CRITICAL FIX: 10 MHz XCLK prevents OV2640 DMA overflow (stops green half-frames!)
+  config.xclk_freq_hz = 10000000;
   config.pixel_format = PIXFORMAT_JPEG;
 
   if (psramFound())
   {
-    config.frame_size = FRAMESIZE_QVGA;
-    config.jpeg_quality = 12;
+    config.frame_size = FRAMESIZE_VGA;
+    config.jpeg_quality = 15;
     config.fb_count = 2;
     config.fb_location = CAMERA_FB_IN_PSRAM;
     config.grab_mode = CAMERA_GRAB_LATEST;
   }
   else
   {
-    config.frame_size = FRAMESIZE_QQVGA;
+    config.frame_size = FRAMESIZE_QVGA;
     config.jpeg_quality = 16;
     config.fb_count = 1;
     config.fb_location = CAMERA_FB_IN_DRAM;
@@ -286,22 +403,25 @@ void setup()
 
   if (err != ESP_OK)
   {
-    Serial.printf("Camera init failed: 0x%x\n", err);
-    while (true)
-    {
-      delay(1000);
-    }
+    Serial.printf("Camera init failed: 0x%x - restarting\n", err);
+    delay(3000);
+    ESP.restart();
   }
+
+  tuneSensor();
+  applyPreset(DEFAULT_PRESET);
 
   WiFi.mode(WIFI_AP);
   WiFi.setSleep(false);
-  WiFi.softAP(AP_SSID, AP_PASSWORD);
+  WiFi.softAP(AP_SSID, AP_PASSWORD, 6, 0, 2);
+  WiFi.setTxPower(WIFI_POWER_15dBm);
 
   streamServer.begin();
 
   server.on("/", HTTP_GET, handleRoot);
   server.on("/cmd", HTTP_GET, handleCommand);
   server.on("/gps", HTTP_GET, handleGPS);
+  server.on("/res", HTTP_GET, handleRes);
   server.begin();
 
   xTaskCreatePinnedToCore(
@@ -311,7 +431,7 @@ void setup()
       nullptr,
       1,
       nullptr,
-      0);
+      1);
 
   Serial.println("GarbageBot ready");
   Serial.println(WiFi.softAPIP());
@@ -319,7 +439,8 @@ void setup()
 
 void loop()
 {
+  readRobotSerial();
   server.handleClient();
   readRobotSerial();
-  delay(2);
+  delay(4);
 }

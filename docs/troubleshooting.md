@@ -10,7 +10,7 @@
 | GPS NO_FIX | Test outdoors with open sky and allow acquisition time |
 | ESP shows no Arduino data | UART crossing, common ground, baud and input voltage protection |
 | Motors do not move | Motor supply, L298N enable configuration, ground, pins and command path |
-| Stops after one second | Expected watchdog behavior when commands stop arriving |
+| Stops after 1.5 seconds | Expected Uno watchdog behavior when commands stop arriving |
 | Direction reversed | Swap motor leads or direction logic |
 | ESP resets when motors start | Review supply current, grounding and motor noise |
 

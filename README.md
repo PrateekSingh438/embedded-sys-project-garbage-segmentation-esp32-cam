@@ -29,8 +29,8 @@ GarbageBot streams video from an ESP32-CAM to a laptop, runs YOLO segmentation o
 2. ESP32-CAM serves an MJPEG stream on port 81 and HTTP endpoints on port 80.
 3. OpenCV reads the stream and YOLO draws segmentation results.
 4. Keyboard commands travel by HTTP `/cmd`, ESP32 UART, and Arduino Uno to the L298N motors.
-5. NEO-6M sends GPS data to the Uno; the ESP32 exposes the latest line at `/gps` for the laptop.
-6. A detection is tagged with the latest GPS fix, or an ORIGIN fallback with command-based dead reckoning, then saved to CSV with a snapshot and added to the map panel.
+5. NEO-6M sends GPS data to the Uno; the ESP32 exposes the latest telemetry at `/gps` and in `/cmd` responses. Python can hold a recent hardware fix or use clearly marked software-assisted coordinates for indoor demos.
+6. Detections are confirmed across multiple frames, tagged with the current position estimate, saved to CSV with an annotated snapshot, and added to the map panel.
 7. `make_map.py` renders the CSV records as an interactive Folium map.
 
 ```mermaid
@@ -50,7 +50,13 @@ flowchart LR
   Record --> Folium[make_map.py / Folium]
 ```
 
-## Dashboard and sample results
+## Live system UI
+
+The screenshot shows the running camera view, segmentation overlay, keyboard help, link and GPS status, detection logging, and relative map panel. It is an example capture from an indoor assisted-GPS session; its displayed GPS values are not live measurements.
+
+![GarbageBot live system interface](assets/screenshots/dashboard_live.png)
+
+## Map and sample results
 
 The available map image shows the generated relative map panel. The CSV sample is anonymized.
 
@@ -121,12 +127,15 @@ The ESP32-CAM is expected at `192.168.4.1`. The camera stream supports one viewe
 |---|---|
 | W / A / S / D | Forward / left / backward / right |
 | Space / X | Stop |
+| 1–9 | Set motor speed level |
+| G | Toggle indoor assisted GPS lock; enables an immediate software lock when on |
 | L | Toggle detection logging |
-| O | Set the current GPS fix as the map origin |
+| O | Set the current GPS fix as the origin, or reset the local pose if no fix is available |
 | M | Save the current map panel as `ai-detection/detections/map_latest.png` |
-| Esc | Exit and stop the robot |
+| R | Cycle camera resolution preset 1–4 |
+| Esc | Exit and send stop commands |
 
-Movement is sent as forward, backward, left, and right commands while keys are held. Space or X stops movement. The keyboard listener requires the application window to be focused for L, O, and M.
+Movement is sent as forward, backward, left, and right commands while keys are held. Space or X stops movement. The application window must be focused for keyboard controls. The Uno also stops the motors after 1.5 seconds without a valid command. Its firmware runs a brief forward/reverse motor self-test at startup, so lift the wheels before powering the robot.
 
 ## Data format
 
@@ -134,20 +143,21 @@ Movement is sent as forward, backward, left, and right commands while keys are h
 
 `timestamp`, `robot_id`, `garbage_type`, `confidence`, `latitude`, `longitude`, `satellites`, `gps_source`, `garbage_lat`, `garbage_lng`, `garbage_x_m`, `garbage_y_m`, `distance_m`, `bearing_deg`, `area_px`, `area_percent`, `size_class`, `area_cm2`, `bbox_w_px`, `bbox_h_px`, `snapshot`.
 
-`gps_source=FIX` indicates a current GPS fix. `gps_source=ORIGIN` indicates the configured origin and dead-reckoning estimate are being used because there is no usable fix. Object distance and bearing are estimates from camera geometry and drive commands.
+`gps_source=FIX` means the UI position was in its FIX state; this may be a hardware GPS fix, a short held hardware fix, or the explicitly assisted software position. `gps_source=ORIGIN` indicates the configured origin and dead-reckoning estimate are being used. The CSV schema does not currently distinguish these FIX subtypes, so consult the UI/session when interpreting indoor records. Object distance and bearing are estimates from camera geometry and drive commands.
 
 ## Model training
 
 The preparation script downloads annotations and images from the [TACO dataset](https://tacodataset.org/), which is released under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). The default grouped labels are Bottle, Cap/Lid, Can, Carton, Cup, Paper, Plastic bag/wrapper, Plastic container, Cigarette, and Other litter.
 
-From the repository root, prepare the dataset and train:
+From the repository root, prepare the dataset, inspect converted polygon labels, then train:
 
 ```bash
 python ai-detection/prepare_taco.py
+python ai-detection/check_labels.py
 python ai-detection/train_taco.py
 ```
 
-The trained weights are written to `ai-detection/models/garbage-seg.pt`. The camera application uses them when present; otherwise it falls back to `ai-detection/models/yolo11n-seg.pt`, a generic COCO model. Training results have not been measured for this repository.
+The label preview is written to `ai-detection/taco_yolo/preview/`. The trained weights are written to `ai-detection/models/garbage-seg.pt`. The camera application uses them when present; otherwise it falls back to `ai-detection/models/yolo11n-seg.pt`, a generic COCO model. Training results have not been measured for this repository.
 
 ## Calibration
 
@@ -163,7 +173,7 @@ These settings are in `ai-detection/camera.py`. Calibrate them against the actua
 
 ## Current status and limitations
 
-The source implements live video, keyboard driving, detection logging, snapshots, and a garbage map panel. Physical operation has not been verified. The TACO model must be trained separately; until `garbage-seg.pt` exists, the generic COCO model is used and its garbage suitability is limited.
+The source implements live video, keyboard driving, GPS display and assisted position modes, detection confirmation and deduplication, CSV and snapshot logging, and a garbage map panel. Physical operation has not been independently verified. The TACO model must be trained separately; until `garbage-seg.pt` exists, the generic COCO model is used and its garbage suitability is limited.
 
 | Metric | Result |
 |---|---|
@@ -219,11 +229,6 @@ GarbageBot/
     ├── screenshots/
     └── project-images/
 ```
-
-## Team
-
-- [Team member name]
-- [Team member name]
 
 ## License
 

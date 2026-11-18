@@ -3,14 +3,14 @@ Step 1 of 2: download TACO and convert it to YOLO segmentation format.
 
 Run this on your laptop or in Google Colab (it needs normal internet):
 
-    python ai-detection/prepare_taco.py
-    python ai-detection/prepare_taco.py --classes super  # 28 TACO super-categories
-    python ai-detection/prepare_taco.py --classes full   # all 60 TACO categories
+    python prepare_taco.py
+    python prepare_taco.py --classes super      # 28 TACO super-categories
+    python prepare_taco.py --classes full       # all 60 TACO categories
 
-Output folder (default: ai-detection/taco_yolo):
-    ai-detection/taco_yolo/images/train, ai-detection/taco_yolo/images/val
-    ai-detection/taco_yolo/labels/train, ai-detection/taco_yolo/labels/val
-    ai-detection/taco_yolo/data.yaml
+Output folder (default: taco_yolo):
+    taco_yolo/images/train, taco_yolo/images/val
+    taco_yolo/labels/train, taco_yolo/labels/val
+    taco_yolo/data.yaml
 
 Needs:  pip install pillow requests
 """
@@ -19,6 +19,7 @@ import json
 import os
 import random
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from io import BytesIO
 from pathlib import Path
@@ -26,10 +27,11 @@ from pathlib import Path
 import requests
 from PIL import Image, ImageOps
 
+BASE_DIR = Path(__file__).resolve().parent
+
 ANNOTATIONS_URL = (
     "https://raw.githubusercontent.com/pedropro/TACO/master/data/annotations.json"
 )
-BASE_DIR = Path(__file__).resolve().parent
 
 # "grouped" mode: 10 practical classes built from TACO super-categories.
 # Anything not listed here becomes "Other litter".
@@ -107,6 +109,7 @@ def fetch_image(info, retries=3):
                     return None
                 return img
             except Exception:
+                time.sleep(1.0)      # be gentle if the server is rate-limiting
                 continue
     return None
 
@@ -226,5 +229,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-

@@ -1,10 +1,10 @@
 """
-Build an interactive map (HTML) from ai-detection/detections/detections.csv.
+Build an interactive map (HTML) from detections/detections.csv.
 
     python -m pip install folium
-    python ai-detection/make_map.py
+    python make_map.py
 
-Opens ai-detection/detections/garbage_map.html in your browser (needs internet for map tiles).
+Opens detections/garbage_map.html in your browser (needs internet for map tiles).
 Each marker = one piece of garbage, coloured by type. Click a marker to see
 type, confidence, time, size, coordinates and whether the position came
 from a real GPS fix or from the ORIGIN fallback.
@@ -12,15 +12,14 @@ from a real GPS fix or from the ORIGIN fallback.
 import csv
 import os
 import webbrowser
-from collections import Counter
 from pathlib import Path
+from collections import Counter
 
 import folium
 
 BASE_DIR = Path(__file__).resolve().parent
-DETECTIONS_DIR = BASE_DIR / "detections"
-CSV_PATH = DETECTIONS_DIR / "detections.csv"
-OUT_PATH = DETECTIONS_DIR / "garbage_map.html"
+CSV_PATH = str(BASE_DIR / "detections" / "detections.csv")
+OUT_PATH = str(BASE_DIR / "detections" / "garbage_map.html")
 
 COLORS = ["red", "green", "blue", "orange", "purple", "darkred",
           "cadetblue", "darkgreen", "pink", "gray"]
@@ -86,7 +85,7 @@ def main():
     for t, n in Counter(r["garbage_type"] for r in rows).most_common():
         print("  {:<22}{}".format(t, n))
     print("Saved", os.path.abspath(OUT_PATH))
-    webbrowser.open("file://" + os.path.abspath(OUT_PATH))
+    webbrowser.open(Path(OUT_PATH).resolve().as_uri())
 
 
 if __name__ == "__main__":
